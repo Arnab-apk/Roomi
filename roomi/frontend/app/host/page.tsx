@@ -173,24 +173,28 @@ export default function HostPage() {
     socket.emit("playback:state", { playback });
   }, []);
 
+  const _applyPlayback = (playback: PlaybackState, shouldPublish = true) => {
+    playbackStateRef.current = playback;
+    setPlaybackState(playback);
+    setCurrentTrack(playback.track);
+    setStatus(playback.isPlaying ? "Playing" : playback.track ? "Paused" : "Waiting for songs...");
+    const position = playback.isPlaying ? playback.startedAtPosition : playback.pausedAtPosition;
+    const clamped = Math.max(0, Math.min(playback.duration, position));
+    progressMsRef.current = clamped;
+    setProgressMs(clamped);
+    if (shouldPublish) publishPlaybackState(playback);
+  };
+  const applyPlaybackStateImpl = useRef(_applyPlayback);
+  applyPlaybackStateImpl.current = _applyPlayback;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const applyPlaybackState = useCallback(
-    (playback: PlaybackState, shouldPublish = true) => {
-      playbackStateRef.current = playback;
-      setPlaybackState(playback);
-      setCurrentTrack(playback.track);
-      setStatus(playback.isPlaying ? "Playing" : playback.track ? "Paused" : "Waiting for songs...");
-      const position = playback.isPlaying ? playback.startedAtPosition : playback.pausedAtPosition;
-      const clamped = Math.max(0, Math.min(playback.duration, position));
-      progressMsRef.current = clamped;
-      setProgressMs(clamped);
-      if (shouldPublish) publishPlaybackState(playback);
-    },
-    [publishPlaybackState],
+    (playback: PlaybackState, shouldPublish = true) => applyPlaybackStateImpl.current(playback, shouldPublish),
+    [],
   );
 
   /* ───────────── Apply room state (from socket) ───────────── */
 
-  const applyRoomState = useCallback((state: RoomState | undefined | null) => {
+  const _applyRoom = (state: RoomState | undefined | null) => {
     if (!state) return;
     const queueIsEmpty = state.queue.length === 0;
     const hasTrack = Boolean(state.currentTrack || state.playback.track);
@@ -225,7 +229,14 @@ export default function HostPage() {
     setSkipVote(state.skipVote ?? null);
     setKickVote(state.kickVote ?? null);
     setCohosts(state.cohosts ?? []);
-  }, [applyPlaybackState]);
+  };
+  const applyRoomStateImpl = useRef(_applyRoom);
+  applyRoomStateImpl.current = _applyRoom;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const applyRoomState = useCallback(
+    (state: RoomState | undefined | null) => applyRoomStateImpl.current(state),
+    [],
+  );
 
   /* ───────────── Wait for confirmed SDK playback ───────────── */
 
@@ -511,7 +522,6 @@ export default function HostPage() {
 
     socket.on("room:state", (state: RoomState) => applyRoomState(state));
     socket.on("playback:state", (playback: PlaybackState) => {
-      // Host echoes its own publishes via this event too — dedupe via expected URI.
       const expected = expectedUriRef.current;
       if (expected && playback.track?.uri !== expected) return;
       applyPlaybackState(playback, false);
@@ -530,7 +540,7 @@ export default function HostPage() {
       socketRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [applyPlaybackState, applyRoomState, hostId, roomCode]);
+  }, [hostId, roomCode]);
 
   /* ───────────── Local progress ticker ───────────── */
 
