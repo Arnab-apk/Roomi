@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/dev/workspace-228e40d7/**)",
+      "Read(//Users/dev/**)",
+      "Bash(echo \"EXIT: $?\")"
+    ]
+  }
+}
