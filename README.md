@@ -1,247 +1,268 @@
-# Roomi
+<div align="center">
 
-Roomi is a real-time shared music room for parties, hostel common rooms, dorms, cafes, clubs, and small events where one speaker is playing but everyone wants a say in the queue.
+# &nbsp;ROOMI&nbsp;
 
-Instead of passing one phone around or letting one person control the aux, a host creates a Spotify-backed room, shares a 6-character code or QR code, and guests join instantly from their own devices. Everyone can add songs, vote on the queue, and watch the room update live.
+### The Aux, Democratized.
 
-## The Significance & Solution
+**Real-time shared music rooms where everyone controls the queue.**
 
-### Scenario
+Create a room. Share a code. Let the crowd decide what plays next.
 
-Group music is usually socially messy. In a hostel lounge, house party, or college event, the music source is often controlled by one person. Guests either interrupt the host to request songs, pass around a phone, or silently tolerate tracks they do not like. The experience breaks down because:
+[![Next.js](https://img.shields.io/badge/Next.js_16-black?style=flat-square&logo=next.js)](https://nextjs.org)
+[![React](https://img.shields.io/badge/React_19-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![Tailwind](https://img.shields.io/badge/Tailwind_CSS_4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
+[![Socket.io](https://img.shields.io/badge/Socket.io-010101?style=flat-square&logo=socket.io)](https://socket.io)
+[![Spotify](https://img.shields.io/badge/Spotify_API-1DB954?style=flat-square&logo=spotify&logoColor=white)](https://developer.spotify.com)
+[![YouTube Music](https://img.shields.io/badge/YouTube_Music-FF0000?style=flat-square&logo=youtube-music&logoColor=white)](https://music.youtube.com)
 
-- The person connected to the speaker becomes the accidental DJ.
-- Song requests are scattered across conversations, chats, and verbal interruptions.
-- Guests have no lightweight way to influence what plays next.
-- A bad song can kill the mood, but skipping it manually can feel awkward.
-- Public rooms need basic control, because not every join request should be trusted.
+---
 
-### MVP Solution
+</div>
 
-Roomi turns the music queue into a shared room interface:
+## The Problem
 
-- The host logs in with Spotify and creates a room without logging out when a session ends.
-- Guests join using a room code or QR code without needing Spotify accounts.
-- The host can keep the room open or lock it so new guests require approval.
-- Guests can search Spotify, stage multiple songs, and add them to the shared queue.
-- Songs are added in queue order, not reordered by votes, so the queue stays predictable.
-- Every added song is automatically upvoted by the person who added it.
-- All clients see live queue, vote, guest, and room-status updates through Socket.io.
-- Hosts can approve, reject, or kick guests from the room.
-- The host controls playback; guests see the same UI style but cannot control playback or room security.
+Group music is broken. At every house party, hostel lounge, or college event, one person holds the aux hostage. Guests shout requests across the room, pass a phone around, or silently endure bad picks. The vibe dies not because of the music — but because of the process.
 
-The result is a democratic music experience where the host remains in control of the room while the crowd can still participate naturally.
+## The Fix
 
-## Tech Stack
+**Roomi turns the speaker into a shared experience.**
 
-| Area | Technology |
-| --- | --- |
-| Frontend | Next.js 16 App Router, React 19, TypeScript |
-| Styling | Tailwind CSS 4, custom CSS variables, Lucide React, React Icons |
-| Authentication | Spotify OAuth, Iron Session encrypted cookies |
-| Music Playback | Spotify Web API, Spotify Web Playback SDK |
-| Real-time Sync | Socket.io, dedicated Express socket provider |
-| Backend/API | Next.js Route Handlers, Express for socket middle layer |
-| State Storage | In-memory room store with room TTL for MVP sessions |
-| QR Codes | `qrcode` with custom rounded SVG rendering |
-| Tooling | ESLint, TypeScript, npm |
+A host creates a room, connects their Spotify or YouTube Music, and shares a 6-character code. Guests scan a QR or punch in the code from their own phones — no app download, no account needed. Everyone adds songs, votes on the queue, and watches it update in real time. The host stays in control. The crowd gets a voice.
 
-## System Architecture & User Flow
+<br>
 
-```text
-Host Browser
-  Spotify OAuth + Web Playback SDK
-        |
-        v
-Next.js App + API Routes  <----->  In-memory Room Store
-        |
-        | REST mutations
-        v
-Dedicated Socket Provider + In-memory Room Store  <----->  Host + Guest Clients
-        |
-        v
-Live queue, votes, room status, guest list, approval state
+<div align="center">
+
+```
+  Host connects Spotify / YouTube Music
+              |
+              v
+     Creates a room (6-char code)
+              |
+     Shares code or QR with guests
+              |
+     ┌────────┴────────┐
+     v                 v
+  Guests join       Guests join
+  (open room)     (locked → approval)
+     |                 |
+     └────────┬────────┘
+              v
+   Search songs → Add to queue → Vote
+              |
+              v
+     Live updates via Socket.io
+     Queue reorders. Music plays.
 ```
 
-### Host Flow
+</div>
 
-1. Host connects a Spotify account on the landing page.
-2. Host clicks "Create Room" to generate a 6-character room code.
-3. The host page starts the Spotify Web Playback SDK and registers the active playback device.
-4. Host shares the room code or QR code with guests.
-5. Host can switch the room between open and locked.
-6. Host can approve waiting guests, reject requests, kick connected guests, add songs, vote, seek playback, skip, pause, and end the room session.
+<br>
 
-### Guest Flow
+## Features
 
-1. Guest enters a room code or scans the QR code.
-2. Guest enters a display name and joins the room.
-3. If the room is open, the guest joins immediately.
-4. If the room is locked, the guest waits until the host approves them.
-5. Approved guests can add songs and vote on the queue.
-6. Guests see the same room layout as the host, but playback controls and room-security controls remain read-only.
+<table>
+<tr>
+<td width="50%">
 
-### Data Flow
+**For Hosts**
+- Connect via Spotify or YouTube Music
+- Create rooms with a single click
+- Share via 6-character code or QR
+- Lock rooms and approve guests
+- Full playback controls (play, pause, skip, seek)
+- Kick disruptive guests
+- End sessions cleanly
 
-- Queue additions, votes, access changes, approvals, rejects, kicks, skips, and playback changes go through Next.js API routes.
-- The API routes call the socket provider over HTTP.
-- The socket provider owns the in-memory room store and emits fresh room snapshots after mutations.
-- Connected clients receive `room-updated` events and re-render without manual refresh.
-- Queue actions are guarded so pending, rejected, or kicked guests cannot keep adding or voting.
+</td>
+<td width="50%">
 
-## Local Setup Instructions
+**For Guests**
+- Join instantly — no account required
+- Search the full Spotify / YouTube catalog
+- Add songs to the shared queue
+- Upvote tracks to influence order
+- See live queue, votes, and now-playing
+- Real-time updates, no refresh needed
+- Works on any device with a browser
+
+</td>
+</tr>
+</table>
+
+<br>
+
+**Under the Hood**
+- Animated vinyl disc player with cyberpunk/aurora/midnight/amber themes
+- Skip vote and kick vote toasts for democratic moderation
+- Equalizer bars and tonearm animations synced to playback state
+- Glassmorphic dark UI with smooth modal transitions
+- Mobile-first responsive design with safe-area support
+
+<br>
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        CLIENT BROWSERS                          │
+│                    (Host + Guest devices)                        │
+│                                                                 │
+│   Next.js App ──── Spotify Web Playback SDK / YouTube Player    │
+│        │                                                        │
+└────────┼────────────────────────────────────────────────────────┘
+         │  REST (mutations)              WebSocket (live state)
+         │                                        │
+┌────────▼──────────────────┐   ┌─────────────────▼───────────────┐
+│   Next.js API Routes      │──▶│   Express + Socket.io Backend   │
+│   (Auth, Search, Room)    │   │   (Room store, state, events)   │
+└───────────────────────────┘   └─────────────────────────────────┘
+         │                                        │
+         ▼                                        ▼
+   Spotify / YouTube              In-memory room store
+   OAuth + Web API               (queue, votes, guests)
+```
+
+**Two independently deployable services:**
+
+| Service | Stack | Deploys to |
+|---------|-------|------------|
+| `roomi/frontend` | Next.js 16, React 19, TypeScript, Tailwind CSS 4 | Vercel |
+| `roomi/backend` | Express 5, Socket.io 4, TypeScript | Render |
+
+<br>
+
+## Quick Start
 
 ### Prerequisites
 
-- Node.js 20+
-- npm
-- A Spotify Developer app from the Spotify Developer Dashboard
-- A Spotify Premium account for the host playback device
+- **Node.js 22+** and npm
+- A **[Spotify Developer](https://developer.spotify.com/dashboard)** app (client ID + secret)
+- A **Spotify Premium** account (required for Web Playback SDK)
 
-### 1. Clone the Repository
+### 1. Clone & Install
 
 ```bash
-git clone <your-github-repo-url>
+git clone https://github.com/your-username/Roomi.git
 cd Roomi
+
+# Install both services
+cd roomi/backend && npm install
+cd ../frontend && npm install
 ```
 
-The project is split into two independently deployable packages:
+### 2. Configure Environment
 
-- `roomi/` - Next.js app and API routes, deployable on Vercel.
-- `socket-provider/` - Express + Socket.io room state service, deployable on Render.
-
-### 2. Install Dependencies
-
-```bash
-cd socket-provider
-npm install
-
-cd ../roomi
-npm install
-```
-
-### 3. Configure Environment Variables
-
-Create `.env` for the socket provider:
-
-```bash
-cd socket-provider
-cp .env.example .env
-```
+**Backend** — create `roomi/backend/.env`:
 
 ```env
 PORT=4001
 CORS_ORIGIN=http://127.0.0.1:3000
 ```
 
-Create `.env.local` for the Next app:
-
-```bash
-cd ../roomi
-cp .env.example .env.local
-```
-
-Fill in the required values:
+**Frontend** — create `roomi/frontend/.env.local`:
 
 ```env
 SPOTIFY_CLIENT_ID=your_spotify_client_id
 SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
 SPOTIFY_REDIRECT_URI=http://127.0.0.1:3000/api/auth/callback
-SESSION_PASSWORD=at_least_32_characters_random_secret
+SESSION_PASSWORD=a_random_string_at_least_32_characters
 
 NEXT_PUBLIC_SOCKET_URL=http://127.0.0.1:4001
 SOCKET_PROVIDER_URL=http://127.0.0.1:4001
 ```
 
-In the Spotify Developer Dashboard, add this redirect URI exactly:
+> **Important:** Add `http://127.0.0.1:3000/api/auth/callback` as a redirect URI in your Spotify Developer Dashboard. Use `127.0.0.1`, not `localhost`, so OAuth cookies stay consistent.
 
-```text
-http://127.0.0.1:3000/api/auth/callback
-```
-
-Use `127.0.0.1`, not `localhost`, so OAuth cookies stay consistent.
-
-### 4. Run Locally
-
-Start the socket provider in one terminal:
+### 3. Run
 
 ```bash
-cd socket-provider
+# Terminal 1 — Backend
+cd roomi/backend
+npm run dev
+
+# Terminal 2 — Frontend
+cd roomi/frontend
 npm run dev
 ```
 
-Start the Next.js app in another terminal:
+Open **http://127.0.0.1:3000** and you're live.
 
-```bash
-cd roomi
-npm run dev
-```
-
-Open the app:
-
-```text
-http://127.0.0.1:3000
-```
-
-### 5. Useful Commands
-
-```bash
-cd roomi
-npm run lint
-npm run build
-
-cd ../socket-provider
-node --check index.js
-npm start
-```
+<br>
 
 ## Production Deployment
 
-### Render: Socket Provider
+<details>
+<summary><strong>Render (Backend)</strong></summary>
 
-Deploy `socket-provider/` as a Render Web Service.
+Deploy `roomi/backend` as a Render Web Service:
 
-- Root directory: `socket-provider`
-- Build command: `npm ci`
-- Start command: `npm start`
-- Health check path: `/health`
-- Environment variables:
+- **Root directory:** `roomi/backend`
+- **Build command:** `npm ci && npm run build`
+- **Start command:** `npm start`
+- **Health check:** `/health`
+- **Environment:**
   - `CORS_ORIGIN=https://your-vercel-app.vercel.app`
 
-Render provides `PORT` automatically, so you usually do not need to set it.
+Render provides `PORT` automatically.
 
-### Vercel: Next.js App
+</details>
 
-Deploy `roomi/` as the Vercel project root.
+<details>
+<summary><strong>Vercel (Frontend)</strong></summary>
 
-- Root directory: `roomi`
-- Framework preset: Next.js
-- Build command: `npm run build`
-- Environment variables:
+Deploy `roomi/frontend` as the Vercel project:
+
+- **Root directory:** `roomi/frontend`
+- **Framework preset:** Next.js
+- **Environment:**
   - `SPOTIFY_CLIENT_ID`
   - `SPOTIFY_CLIENT_SECRET`
-  - `SPOTIFY_REDIRECT_URI=https://your-vercel-app.vercel.app/api/auth/callback`
-  - `SESSION_PASSWORD`, at least 32 random characters
-  - `NEXT_PUBLIC_SOCKET_URL=https://your-render-socket-service.onrender.com`
-  - `SOCKET_PROVIDER_URL=https://your-render-socket-service.onrender.com`
+  - `SPOTIFY_REDIRECT_URI=https://your-app.vercel.app/api/auth/callback`
+  - `SESSION_PASSWORD` (32+ random characters)
+  - `NEXT_PUBLIC_SOCKET_URL=https://your-backend.onrender.com`
+  - `SOCKET_PROVIDER_URL=https://your-backend.onrender.com`
 
-In the Spotify Developer Dashboard, add the production redirect URI exactly:
+Add the production callback URL to Spotify Developer Dashboard.
 
-```text
-https://your-vercel-app.vercel.app/api/auth/callback
-```
+</details>
 
-## Future Scope
+<br>
 
-- Persistent storage: Move room, queue, vote, and guest data from memory to Redis or PostgreSQL so sessions survive server restarts.
-- Smarter moderation: Add host-configurable vote thresholds, auto-skip rules, profanity filters, and duplicate artist cooldowns.
-- Better playback intelligence: Use audio features, BPM, genre, and energy matching to suggest smoother transitions.
-- Multi-platform support: Add YouTube, SoundCloud, or local file support for rooms that do not rely only on Spotify.
-- Role controls: Add co-hosts, trusted guests, guest mute/ban lists, and room-level permissions.
-- Analytics: Show top contributors, most skipped songs, room mood trends, and post-session playlists.
-- Production scalability: Replace single-process memory state with shared state and horizontal socket scaling.
-- Mobile polish: Add installable PWA flows, haptic feedback, and lock-screen friendly room controls.
+## Roadmap
 
-## MVP Status
+| Priority | Feature |
+|----------|---------|
+| **Next** | Persistent storage (Redis/PostgreSQL) for room state across restarts |
+| **Next** | Smart moderation — vote thresholds, auto-skip, duplicate cooldowns |
+| **Soon** | BPM/energy-aware queue suggestions for smoother transitions |
+| **Soon** | Role system — co-hosts, trusted guests, permission tiers |
+| **Later** | Post-session analytics — top contributors, mood trends, playlist export |
+| **Later** | PWA with installable flow, haptic feedback, lock-screen controls |
+| **Later** | Horizontal scaling with shared state for large venues |
 
-Roomi currently supports the core end-to-end experience: Spotify host login, room creation, QR/code joining, locked/open room access, approval waitlist, guest kicking, live queue updates, voting, song search, automatic first-track playback, and host-side playback controls.
+<br>
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Framework | Next.js 16 (App Router) |
+| UI | React 19, Tailwind CSS 4, Lucide Icons |
+| Language | TypeScript 5 |
+| Auth | Spotify OAuth, Google OAuth, Iron Session |
+| Music | Spotify Web API + Playback SDK, YouTube Music |
+| Real-time | Socket.io 4, Express 5 |
+| State | In-memory room store with TTL |
+| QR | `qrcode` with custom SVG rendering |
+
+<br>
+
+<div align="center">
+
+---
+
+**Built for parties. Powered by the crowd.**
+
+</div>
