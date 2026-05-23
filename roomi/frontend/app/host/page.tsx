@@ -35,6 +35,7 @@ import Player, {
   type PlayerStatus,
   type SDKTrack,
 } from "@/components/Player";
+import YouTubePlayer from "@/components/YouTubePlayer";
 import Queue from "@/components/Queue";
 import RoomQRCode from "@/components/RoomQRCode";
 import SearchModal from "@/components/SearchModal";
@@ -99,6 +100,7 @@ export default function HostPage() {
   const [accessToken, setAccessToken] = useState("");
   const [roomCode, setRoomCode] = useState("");
   const [hostId, setHostId] = useState("");
+  const [provider, setProvider] = useState<"spotify" | "youtube">("spotify");
   const [deviceId, setDeviceId] = useState("");
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
   const [queue, setQueue] = useState<QueueItem[]>([]);
@@ -445,6 +447,7 @@ export default function HostPage() {
         setAccessToken(tokenPayload.access_token ?? "");
         setRoomCode(String(me.roomCode));
         setHostId(String(me.hostId));
+        setProvider(me.provider === "youtube" ? "youtube" : "spotify");
       } catch {
         if (!cancelled) setError("Failed to initialize host room");
       } finally {
@@ -454,10 +457,11 @@ export default function HostPage() {
     return () => { cancelled = true; };
   }, []);
 
-  /* ───────────── Refresh Spotify token every 45 minutes ───────────── */
+  /* ───────────── Refresh token periodically ───────────── */
 
   useEffect(() => {
     if (!roomCode) return;
+    const intervalMs = provider === "youtube" ? 50 * 60 * 1000 : 45 * 60 * 1000;
     const id = window.setInterval(async () => {
       try {
         const res = await fetch("/api/auth/token");
@@ -468,9 +472,9 @@ export default function HostPage() {
           socketRef.current?.emit("room:set-token", { accessToken: payload.access_token });
         }
       } catch { /* best-effort */ }
-    }, 45 * 60 * 1000);
+    }, intervalMs);
     return () => window.clearInterval(id);
-  }, [roomCode]);
+  }, [roomCode, provider]);
 
   /* ───────────── Socket connection ───────────── */
 
@@ -795,16 +799,28 @@ export default function HostPage() {
   return (
     <div className="roomi-bg h-screen overflow-hidden text-slate-100">
       <div className="hidden">
-        <Player
-          ref={playerRef}
-          accessToken={accessToken}
-          onReady={handlePlayerReady}
-          onTrackEnd={() => fetchNextTrack()}
-          onStatusChange={handleSdkStatusChange}
-          onTrackChange={handleSdkTrackChange}
-          onPlaybackState={handleSdkPlaybackState}
-          onError={setError}
-        />
+        {provider === "youtube" ? (
+          <YouTubePlayer
+            ref={playerRef}
+            onReady={handlePlayerReady}
+            onTrackEnd={() => fetchNextTrack()}
+            onStatusChange={handleSdkStatusChange}
+            onTrackChange={handleSdkTrackChange}
+            onPlaybackState={handleSdkPlaybackState}
+            onError={setError}
+          />
+        ) : (
+          <Player
+            ref={playerRef}
+            accessToken={accessToken}
+            onReady={handlePlayerReady}
+            onTrackEnd={() => fetchNextTrack()}
+            onStatusChange={handleSdkStatusChange}
+            onTrackChange={handleSdkTrackChange}
+            onPlaybackState={handleSdkPlaybackState}
+            onError={setError}
+          />
+        )}
       </div>
 
       <main className="mx-auto flex h-full max-w-[1600px] flex-col px-4 py-0 sm:px-6 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(420px,1fr)] lg:px-8 lg:py-0">
@@ -1459,6 +1475,7 @@ export default function HostPage() {
         socket={socketRef.current}
         queuedTrackIds={queue.map((q) => q.track.id)}
         currentTrackId={currentTrack?.id ?? null}
+        provider={provider}
       />
     </div>
   );

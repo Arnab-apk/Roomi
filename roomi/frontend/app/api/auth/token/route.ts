@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { refreshAccessToken } from "@/lib/spotify";
+import { refreshGoogleAccessToken } from "@/lib/google";
 import { backendUpdateRoomToken } from "@/lib/backend";
 
 export async function GET() {
@@ -9,7 +10,10 @@ export async function GET() {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   try {
-    const accessToken = await refreshAccessToken(session.refreshToken);
+    const accessToken =
+      session.provider === "youtube"
+        ? await refreshGoogleAccessToken(session.refreshToken)
+        : await refreshAccessToken(session.refreshToken);
     session.accessToken = accessToken;
     await session.save();
     if (session.roomCode) {

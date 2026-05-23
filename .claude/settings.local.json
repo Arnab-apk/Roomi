@@ -3,7 +3,11 @@
     "allow": [
       "Read(//Users/dev/workspace-228e40d7/**)",
       "Read(//Users/dev/**)",
-      "Bash(echo \"EXIT: $?\")"
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(npx tsc *)",
+      "Bash(npx -p typescript tsc --noEmit)",
+      "mcp__ide__getDiagnostics",
+      "Bash(openssl rand *)"
     ]
   }
 }

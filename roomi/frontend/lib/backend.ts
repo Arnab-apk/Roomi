@@ -35,6 +35,7 @@ export async function backendCreateRoom(input: {
   hostId: string;
   accessToken: string;
   refreshToken: string;
+  provider?: "spotify" | "youtube";
 }): Promise<{ roomCode: string }> {
   return call("/api/rooms", { method: "POST", body: input });
 }

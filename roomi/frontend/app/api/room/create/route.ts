@@ -20,6 +20,7 @@ export async function POST() {
     hostId: session.hostId,
     accessToken: session.accessToken,
     refreshToken: session.refreshToken,
+    provider: session.provider ?? "spotify",
   });
   session.roomCode = room.roomCode;
   await session.save();

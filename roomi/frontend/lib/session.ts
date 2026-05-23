@@ -9,6 +9,7 @@ export interface SessionData {
   accountName?: string;
   isHost?: boolean;
   flashError?: string;
+  provider?: "spotify" | "youtube";
 }
 
 export const sessionOptions: SessionOptions = {

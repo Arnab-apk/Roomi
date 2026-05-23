@@ -14,6 +14,7 @@ export async function GET() {
     hasActiveRoom: Boolean(session.roomCode),
     roomCode: session.roomCode ?? null,
     hostId: session.hostId ?? null,
+    provider: session.provider ?? null,
     flashError,
   });
 }

@@ -5,9 +5,12 @@
 
 export type Vote = "up" | "down";
 
+export type MusicProvider = "spotify" | "youtube";
+
 export type Track = {
   id: string;
   uri: string;
+  provider: MusicProvider;
   title: string;
   artist: string;
   albumArt: string;
@@ -61,6 +64,7 @@ export type KickVote = {
 export type RoomState = {
   roomCode: string;
   hostId: string;
+  provider: MusicProvider;
   access: "open" | "locked";
   queue: QueueItem[];
   currentTrack: Track | null;

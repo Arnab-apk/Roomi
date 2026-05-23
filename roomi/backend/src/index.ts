@@ -10,6 +10,7 @@ type Vote = "up" | "down";
 type Track = {
   id: string;
   uri: string;
+  provider: "spotify" | "youtube";
   title: string;
   artist: string;
   albumArt: string;
@@ -63,6 +64,7 @@ type KickVote = {
 type Room = {
   roomCode: string;
   hostId: string;
+  provider: "spotify" | "youtube";
   accessToken: string;
   refreshToken: string;
   deviceId: string;
@@ -82,6 +84,7 @@ type Room = {
 type PublicRoomState = {
   roomCode: string;
   hostId: string;
+  provider: "spotify" | "youtube";
   access: "open" | "locked";
   queue: QueueItem[];
   currentTrack: Track | null;
@@ -196,11 +199,12 @@ function generateCode(): string {
   return code;
 }
 
-function createRoom(input: { hostId: string; accessToken: string; refreshToken: string }): Room {
+function createRoom(input: { hostId: string; accessToken: string; refreshToken: string; provider?: "spotify" | "youtube" }): Room {
   const roomCode = generateCode();
   const room: Room = {
     roomCode,
     hostId: input.hostId,
+    provider: input.provider ?? "spotify",
     accessToken: input.accessToken,
     refreshToken: input.refreshToken,
     deviceId: "",
@@ -273,6 +277,7 @@ function isValidTrack(track: unknown): track is Track {
     typeof t.artist === "string" &&
     typeof t.albumArt === "string" &&
     typeof t.durationMs === "number" &&
+    (t.provider === "spotify" || t.provider === "youtube") &&
     t.id.length > 0 &&
     t.uri.length > 0
   );
@@ -294,6 +299,7 @@ function buildPublicState(room: Room): PublicRoomState {
   return {
     roomCode: room.roomCode,
     hostId: room.hostId,
+    provider: room.provider,
     access: room.access,
     queue: room.queue,
     currentTrack: room.currentTrack,
@@ -706,11 +712,12 @@ app.post("/api/rooms", requireSecret, (req, res) => {
   const hostId = trimString(req.body?.hostId);
   const accessToken = trimString(req.body?.accessToken);
   const refreshToken = trimString(req.body?.refreshToken);
+  const provider = req.body?.provider === "youtube" ? "youtube" as const : "spotify" as const;
   if (!hostId || !accessToken || !refreshToken) {
     res.status(400).json({ error: "hostId, accessToken, refreshToken required" });
     return;
   }
-  const room = createRoom({ hostId, accessToken, refreshToken });
+  const room = createRoom({ hostId, accessToken, refreshToken, provider });
   res.json({ roomCode: room.roomCode });
 });
 

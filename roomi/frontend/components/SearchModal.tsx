@@ -12,7 +12,7 @@ import {
   Search,
   X,
 } from "lucide-react";
-import type { Track } from "@/lib/types";
+import type { Track, MusicProvider } from "@/lib/types";
 import type { RoomiSocket } from "@/lib/socket";
 
 type SearchModalProps = {
@@ -21,6 +21,7 @@ type SearchModalProps = {
   socket: RoomiSocket | null;
   queuedTrackIds: string[];
   currentTrackId?: string | null;
+  provider?: MusicProvider;
   onClose: () => void;
 };
 
@@ -122,6 +123,7 @@ export default function SearchModal({
   socket,
   queuedTrackIds,
   currentTrackId,
+  provider,
   onClose,
 }: SearchModalProps) {
   const [query, setQuery] = useState("");
@@ -184,6 +186,8 @@ export default function SearchModal({
     if (open) setTimeout(() => inputRef.current?.focus(), 100);
   }, [open]);
 
+  const searchUrl = provider === "youtube" ? "/api/youtube/search" : "/api/spotify/search";
+
   const fetchHomeTracks = useCallback(async () => {
     if (!roomCode) return;
     setHomeLoading(true);
@@ -200,12 +204,12 @@ export default function SearchModal({
     
     try {
       const [res1, res2] = await Promise.all([
-        fetch("/api/spotify/search", {
+        fetch(searchUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ query: q1, roomCode, limit: 25 }),
         }),
-        fetch("/api/spotify/search", {
+        fetch(searchUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ query: q2, roomCode, limit: 25 }),
@@ -237,7 +241,7 @@ export default function SearchModal({
     } finally {
       setHomeLoading(false);
     }
-  }, [roomCode]);
+  }, [roomCode, searchUrl]);
 
   useEffect(() => {
     if (open && !initialLoaded && roomCode) {
@@ -258,7 +262,7 @@ export default function SearchModal({
       setMoodLoading(true);
       setError("");
       try {
-        const res = await fetch("/api/spotify/search", {
+        const res = await fetch(searchUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ query: searchQuery, roomCode, limit: 50 }),
@@ -277,7 +281,7 @@ export default function SearchModal({
         setMoodLoading(false);
       }
     },
-    [roomCode],
+    [roomCode, searchUrl],
   );
 
   useEffect(() => {
@@ -297,7 +301,7 @@ export default function SearchModal({
       setLoading(true);
       setError("");
       try {
-        const res = await fetch("/api/spotify/search", {
+        const res = await fetch(searchUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ query: query.trim(), roomCode, limit: 50 }),

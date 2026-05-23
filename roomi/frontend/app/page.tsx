@@ -23,6 +23,7 @@ type AuthState = {
   hasActiveRoom: boolean;
   roomCode: string | null;
   flashError?: string | null;
+  provider?: "spotify" | "youtube" | null;
 };
 
 export default function HomePage() {
@@ -43,6 +44,7 @@ function HomePageInner() {
     hasActiveRoom: false,
     roomCode: null,
     flashError: null,
+    provider: null,
   });
   const [createLoading, setCreateLoading] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
@@ -67,6 +69,7 @@ function HomePageInner() {
           hasActiveRoom: Boolean(payload?.hasActiveRoom),
           roomCode: payload?.roomCode ? String(payload.roomCode) : null,
           flashError: payload?.flashError ? String(payload.flashError) : null,
+          provider: payload?.provider ?? null,
         });
         const flash = toastFor(payload?.flashError ? String(payload.flashError) : null);
         if (flash) setToast(flash);
@@ -247,42 +250,66 @@ function HomePageInner() {
                       </span>
                     </p>
                     <p style={{ marginTop: 8, color: "var(--text-secondary)", fontSize: 14 }}>
-                      Connected account is ready. Create a room with one click.
+                      Connected via {auth.provider === "youtube" ? "YouTube Music" : "Spotify"}. Create a room with one click.
                     </p>
                   </>
                 ) : (
                   <p style={{ marginTop: 10, color: "var(--text-secondary)" }}>
-                    Connect Spotify first. This signs in your account only, no room is created yet.
+                    Connect your music account first. This signs in only, no room is created yet.
                   </p>
                 )}
               </div>
 
               {!authLoading && !auth.connected ? (
-                <a
-                  href="/api/auth/login"
-                  className="spotify-btn"
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 10,
-                    width: "100%",
-                    height: 52,
-                    borderRadius: 14,
-                    background: "#1DB954",
-                    border: "none",
-                    fontFamily: "var(--font-sans)",
-                    fontSize: 15,
-                    fontWeight: 600,
-                    color: "#000000",
-                    letterSpacing: "-0.01em",
-                    textDecoration: "none",
-                    cursor: "pointer",
-                    marginTop: 24,
-                  }}
-                >
-                  Connect with Spotify
-                </a>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 24 }}>
+                  <a
+                    href="/api/auth/login"
+                    className="spotify-btn"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 10,
+                      width: "100%",
+                      height: 52,
+                      borderRadius: 14,
+                      background: "#1DB954",
+                      border: "none",
+                      fontFamily: "var(--font-sans)",
+                      fontSize: 15,
+                      fontWeight: 600,
+                      color: "#000000",
+                      letterSpacing: "-0.01em",
+                      textDecoration: "none",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Connect with Spotify
+                  </a>
+                  <a
+                    href="/api/auth/google/login"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 10,
+                      width: "100%",
+                      height: 52,
+                      borderRadius: 14,
+                      background: "#FF0000",
+                      border: "none",
+                      fontFamily: "var(--font-sans)",
+                      fontSize: 15,
+                      fontWeight: 600,
+                      color: "#FFFFFF",
+                      letterSpacing: "-0.01em",
+                      textDecoration: "none",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Connect with YouTube Music
+                  </a>
+                </div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 24 }}>
                   <button

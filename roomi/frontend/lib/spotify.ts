@@ -108,6 +108,7 @@ export async function searchTracks(accessToken: string, query: string, limit = 1
   return data.tracks.items.map((track) => ({
     id: track.id,
     uri: track.uri,
+    provider: "spotify" as const,
     title: track.name,
     artist: track.artists.map((a) => a.name).join(", "),
     albumArt: track.album.images[0]?.url ?? "",

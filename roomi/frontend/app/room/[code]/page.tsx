@@ -63,6 +63,7 @@ function GuestRoomInner() {
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
   const [guestCount, setGuestCount] = useState(0);
   const [roomAccess, setRoomAccess] = useState<"open" | "locked">("open");
+  const [provider, setProvider] = useState<"spotify" | "youtube">("spotify");
   const [joinState, setJoinState] = useState<"joining" | "approved" | "pending" | "removed">("joining");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -107,6 +108,7 @@ function GuestRoomInner() {
     }
     setGuestCount(state.guestCount);
     setRoomAccess(state.access);
+    if (state.provider) setProvider(state.provider);
     setSkipVote(state.skipVote ?? null);
     setKickVote(state.kickVote ?? null);
     setCohosts(state.cohosts ?? []);
@@ -736,6 +738,7 @@ function GuestRoomInner() {
         socket={socketRef.current}
         queuedTrackIds={queue.map((q) => q.track.id)}
         currentTrackId={currentTrack?.id ?? null}
+        provider={provider}
       />
     </div>
   );
