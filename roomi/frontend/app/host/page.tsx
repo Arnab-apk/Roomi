@@ -55,8 +55,9 @@ import type {
 /* ──────────────────────────── Helpers ──────────────────────────── */
 
 const formatDuration = (ms: number) => {
-  const m = Math.floor(ms / 60000);
-  const s = Math.floor((ms % 60000) / 1000);
+  const safe = Number.isFinite(ms) ? ms : 0;
+  const m = Math.floor(safe / 60000);
+  const s = Math.floor((safe % 60000) / 1000);
   return `${m}:${s.toString().padStart(2, "0")}`;
 };
 
@@ -78,6 +79,8 @@ function makePlaybackState(track: Track | null, positionMs: number, isPlaying: b
 
 export default function HostPage() {
   const router = useRouter();
+  const routerRef = useRef(router);
+  routerRef.current = router;
 
   /* Refs we read inside async/SDK callbacks */
   const socketRef = useRef<RoomiSocket | null>(null);
@@ -92,6 +95,7 @@ export default function HostPage() {
   const isDraggingRef = useRef(false);
   const currentTrackRef = useRef<Track | null>(null);
   const queueRef = useRef<QueueItem[]>([]);
+  const playbackStateRef = useRef<PlaybackState | null>(null);
 
   /* State */
   const [loading, setLoading] = useState(true);
@@ -141,14 +145,15 @@ export default function HostPage() {
   useEffect(() => { queueRef.current = queue; }, [queue]);
 
   const displayTrack = currentTrack;
-  const durationMs = displayTrack?.durationMs ?? 1;
+  const durationMs = displayTrack?.durationMs || 1;
   const guestCount = useMemo(() => Object.keys(guests).length, [guests]);
   const joinUrl = useMemo(
     () => (roomCode && origin ? `${origin}/room/${roomCode}` : ""),
     [origin, roomCode],
   );
   const isPlaying = status === "Playing";
-  const playedRatio = Math.max(0, Math.min(1, durationMs > 0 ? progressMs / durationMs : 0));
+  const safeProgressMs = Number.isFinite(progressMs) ? progressMs : 0;
+  const playedRatio = Math.max(0, Math.min(1, durationMs > 0 ? safeProgressMs / durationMs : 0));
   const hasTrack = !!displayTrack;
 
   /* ───────────── Playback publish (deduped) ───────────── */
@@ -169,6 +174,7 @@ export default function HostPage() {
 
   const applyPlaybackState = useCallback(
     (playback: PlaybackState, shouldPublish = true) => {
+      playbackStateRef.current = playback;
       setPlaybackState(playback);
       setCurrentTrack(playback.track);
       setStatus(playback.isPlaying ? "Playing" : playback.track ? "Paused" : "Waiting for songs...");
@@ -509,7 +515,7 @@ export default function HostPage() {
       applyPlaybackState(playback, false);
     });
     socket.on("room:closed", () => {
-      router.push("/");
+      routerRef.current.push("/");
     });
 
     const pingId = window.setInterval(() => {
@@ -521,7 +527,8 @@ export default function HostPage() {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [applyPlaybackState, applyRoomState, hostId, roomCode, router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [applyPlaybackState, applyRoomState, hostId, roomCode]);
 
   /* ───────────── Local progress ticker ───────────── */
 
@@ -532,17 +539,20 @@ export default function HostPage() {
     }
     const update = () => {
       if (isDraggingRef.current) return;
-      const next = playbackState.isPlaying
-        ? playbackState.startedAtPosition + (Date.now() - playbackState.startedAtTimestamp)
-        : playbackState.pausedAtPosition;
-      const clamped = Math.max(0, Math.min(playbackState.duration, next));
+      const ps = playbackStateRef.current;
+      if (!ps) return;
+      const next = ps.isPlaying
+        ? ps.startedAtPosition + (Date.now() - ps.startedAtTimestamp)
+        : ps.pausedAtPosition;
+      const clamped = Math.max(0, Math.min(ps.duration, next));
       progressMsRef.current = clamped;
       setProgressMs(clamped);
     };
     update();
     const id = window.setInterval(update, 500);
     return () => window.clearInterval(id);
-  }, [playbackState]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playbackState?.track?.uri, playbackState?.isPlaying]);
 
   /* ───────────── SDK reconciliation poll ─────────────
    * The SDK can silently drift from the UI: it may stall without firing a
@@ -565,20 +575,19 @@ export default function HostPage() {
       const expectedTrack = currentTrackRef.current;
       if (!expectedTrack || sdkUri !== expectedTrack.uri) return;
       const sdkPlaying = !snap.paused;
-      const uiPlaying = playbackState?.isPlaying ?? false;
+      const ps = playbackStateRef.current;
+      const uiPlaying = ps?.isPlaying ?? false;
       const sdkPosition = snap.position ?? 0;
-      const uiPosition = uiPlaying && playbackState
-        ? playbackState.startedAtPosition + (Date.now() - playbackState.startedAtTimestamp)
-        : playbackState?.pausedAtPosition ?? 0;
-      // Only reconcile when divergence is meaningful: playing-state flips
-      // or position drift > 1.5s. Smaller drift is just clock skew.
+      const uiPosition = uiPlaying && ps
+        ? ps.startedAtPosition + (Date.now() - ps.startedAtTimestamp)
+        : ps?.pausedAtPosition ?? 0;
       const drift = Math.abs(sdkPosition - uiPosition);
       if (sdkPlaying !== uiPlaying || drift > 1500) {
         applyPlaybackState(makePlaybackState(expectedTrack, sdkPosition, sdkPlaying), true);
       }
     }, 2500);
     return () => window.clearInterval(id);
-  }, [applyPlaybackState, currentTrack, deviceId, loadingTrack, playbackState]);
+  }, [applyPlaybackState, currentTrack, deviceId, loadingTrack]);
 
   /* ───────────── Spotify Player ready ───────────── */
 
@@ -668,6 +677,7 @@ export default function HostPage() {
       return {
         id: sdkTrack.id,
         uri: sdkTrack.uri,
+        provider: cur?.provider ?? "spotify",
         title: sdkTrack.title,
         artist: sdkTrack.artist,
         albumArt: sdkTrack.albumArt,
@@ -698,6 +708,7 @@ export default function HostPage() {
           : {
               id: sdkTrack.id,
               uri: sdkTrack.uri,
+              provider: currentTrackRef.current?.provider ?? "spotify",
               title: sdkTrack.name,
               artist: sdkTrack.artists.map((a) => a.name).join(", "),
               albumArt: sdkTrack.album.images[0]?.url ?? "",
@@ -861,7 +872,7 @@ export default function HostPage() {
                     min={0}
                     max={Math.max(1, durationMs)}
                     step={1}
-                    value={Math.min(progressMs, durationMs)}
+                    value={Math.min(safeProgressMs, durationMs)}
                     onPointerDown={handleProgressPointerDown}
                     onPointerUp={handleProgressPointerUp}
                     onTouchStart={handleProgressPointerDown}
@@ -875,7 +886,7 @@ export default function HostPage() {
               </div>
 
               <div className="mt-2.5 flex items-center justify-between text-[12px] font-semibold text-slate-400/95">
-                <span className="font-mono">{hasTrack ? formatDuration(progressMs) : "0:00"}</span>
+                <span className="font-mono">{hasTrack ? formatDuration(safeProgressMs) : "0:00"}</span>
                 <span className="font-mono">{hasTrack ? formatDuration(durationMs) : "0:00"}</span>
               </div>
 

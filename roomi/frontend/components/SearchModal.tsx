@@ -327,7 +327,7 @@ export default function SearchModal({
       cancelled = true;
       window.clearTimeout(id);
     };
-  }, [open, query, roomCode]);
+  }, [open, query, roomCode, searchUrl]);
 
   const toggleSelection = (track: Track) => {
     if (blockedTrackIds.has(track.id)) return;
