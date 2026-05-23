@@ -28,6 +28,10 @@ export type ClientEvents = {
     payload: { access: "open" | "locked" },
     ack?: (response: SocketAck) => void,
   ) => void;
+  "room:set-listen-mode": (
+    payload: { listenMode: "host-only" | "everyone" },
+    ack?: (response: SocketAck) => void,
+  ) => void;
   "room:moderate-guest": (
     payload: { guestId: string; intent: "approve-guest" | "reject-guest" | "kick-guest" },
     ack?: (response: SocketAck) => void,

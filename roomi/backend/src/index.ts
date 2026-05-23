@@ -69,6 +69,7 @@ type Room = {
   refreshToken: string;
   deviceId: string;
   access: "open" | "locked";
+  listenMode: "host-only" | "everyone";
   queue: QueueItem[];
   currentTrack: Track | null;
   playback: PlaybackState;
@@ -86,6 +87,7 @@ type PublicRoomState = {
   hostId: string;
   provider: "spotify" | "youtube";
   access: "open" | "locked";
+  listenMode: "host-only" | "everyone";
   queue: QueueItem[];
   currentTrack: Track | null;
   playback: PlaybackState;
@@ -209,6 +211,7 @@ function createRoom(input: { hostId: string; accessToken: string; refreshToken: 
     refreshToken: input.refreshToken,
     deviceId: "",
     access: "open",
+    listenMode: "host-only",
     queue: [],
     currentTrack: null,
     playback: emptyPlayback(),
@@ -301,6 +304,7 @@ function buildPublicState(room: Room): PublicRoomState {
     hostId: room.hostId,
     provider: room.provider,
     access: room.access,
+    listenMode: room.listenMode,
     queue: room.queue,
     currentTrack: room.currentTrack,
     playback: room.playback,
@@ -882,6 +886,23 @@ io.on("connection", (socket) => {
         return ack?.({ error: "Invalid access" });
       }
       setRoomAccess(room, payload.access);
+      broadcastRoom(io, room);
+      ack?.({ ok: true });
+    }, ack);
+  });
+
+  socket.on("room:set-listen-mode", (
+    payload: { listenMode?: "host-only" | "everyone" },
+    ack?: (response: SocketAck) => void,
+  ) => {
+    safe(() => {
+      const room = requireHost(ack);
+      if (!room) return;
+      if (payload?.listenMode !== "host-only" && payload?.listenMode !== "everyone") {
+        return ack?.({ error: "Invalid listen mode" });
+      }
+      room.listenMode = payload.listenMode;
+      touchRoom(room);
       broadcastRoom(io, room);
       ack?.({ ok: true });
     }, ack);

@@ -140,6 +140,7 @@ export default function HostPage() {
   const [preventDuplicates, setPreventDuplicates] = useState(true);
   const [enableVoting, setEnableVoting] = useState(true);
   const [anonymousMode, setAnonymousMode] = useState(false);
+  const [listenMode, setListenModeState] = useState<"host-only" | "everyone">("host-only");
 
   useEffect(() => { currentTrackRef.current = currentTrack; }, [currentTrack]);
   useEffect(() => { queueRef.current = queue; }, [queue]);
@@ -220,6 +221,7 @@ export default function HostPage() {
     setGuests(state.guests);
     setPendingGuests(state.pendingGuests);
     setRoomAccessState(state.access);
+    if (state.listenMode) setListenModeState(state.listenMode);
     setSkipVote(state.skipVote ?? null);
     setKickVote(state.kickVote ?? null);
     setCohosts(state.cohosts ?? []);
@@ -735,6 +737,12 @@ export default function HostPage() {
     });
   };
 
+  const setListenMode = (mode: "host-only" | "everyone") => {
+    socketRef.current?.emit("room:set-listen-mode", { listenMode: mode }, (ack: { error?: string }) => {
+      if (ack?.error) setError(ack.error);
+    });
+  };
+
   const handleGuestModeration = (
     guestId: string,
     intent: "approve-guest" | "reject-guest" | "kick-guest",
@@ -1203,6 +1211,59 @@ export default function HostPage() {
                                   ) : (
                                     <p>
                                       <strong className="text-amber-400 font-semibold">Locked Mode:</strong> New users joining will be placed in a request queue. You must manually approve them from the guests panel before they can view or interact with the player.
+                                    </p>
+                                  )}
+                                </div>
+                              </section>
+
+                              <hr className="border-t border-white/5 my-1" />
+
+                              {/* Listen Mode */}
+                              <section className="space-y-2.5">
+                                <h4 className="text-[10px] font-bold uppercase tracking-[0.15em] text-sky-300/80">Listen Mode</h4>
+
+                                <div className="relative grid grid-cols-2 rounded-xl border border-white/10 bg-slate-950/50 p-1 select-none">
+                                  <div
+                                    className={`absolute bottom-1 top-1 rounded-lg bg-gradient-to-r transition-all duration-300 ease-out ${
+                                      listenMode === "host-only"
+                                        ? "left-1 right-[calc(50%+4px)] from-slate-500 to-slate-400 shadow-[0_0_12px_rgba(100,116,139,0.25)]"
+                                        : "left-[calc(50%+4px)] right-1 from-violet-500 to-purple-400 shadow-[0_0_12px_rgba(139,92,246,0.25)]"
+                                    }`}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setListenMode("host-only")}
+                                    className={`relative z-10 flex h-7 items-center justify-center gap-1.5 rounded-lg text-[10px] font-bold transition duration-300 focus:outline-none ${
+                                      listenMode === "host-only" ? "text-slate-950" : "text-slate-400 hover:text-slate-200"
+                                    }`}
+                                  >
+                                    Host Only
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setListenMode("everyone")}
+                                    disabled={provider === "spotify"}
+                                    className={`relative z-10 flex h-7 items-center justify-center gap-1.5 rounded-lg text-[10px] font-bold transition duration-300 focus:outline-none ${
+                                      listenMode === "everyone" ? "text-slate-950" : "text-slate-400 hover:text-slate-200"
+                                    } ${provider === "spotify" ? "opacity-40 cursor-not-allowed" : ""}`}
+                                  >
+                                    Everyone
+                                  </button>
+                                </div>
+
+                                <div className="px-1 text-[10px] leading-relaxed text-slate-400/80 animate-scale-in transition-all duration-300 select-none">
+                                  {listenMode === "host-only" ? (
+                                    <p>
+                                      <strong className="text-slate-300 font-semibold">Host Only:</strong> Audio plays only from the host device. Guests see track info and progress but hear nothing locally.
+                                    </p>
+                                  ) : (
+                                    <p>
+                                      <strong className="text-violet-400 font-semibold">Everyone:</strong> Guests hear audio through their own device via a synchronized YouTube player. Each guest can control their own volume.
+                                    </p>
+                                  )}
+                                  {provider === "spotify" && (
+                                    <p className="mt-1.5 text-amber-400/70">
+                                      Synchronized listening requires YouTube. Spotify rooms cannot broadcast to guests because each listener would need their own Premium account.
                                     </p>
                                   )}
                                 </div>

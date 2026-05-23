@@ -9,6 +9,7 @@ import {
   Crown,
   DoorClosed,
   FastForward,
+  Headphones,
   ListMusic,
   Lock,
   LockOpen,
@@ -18,6 +19,8 @@ import {
   QrCode,
   Settings,
   Users,
+  Volume2,
+  VolumeX,
   X,
 } from "lucide-react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -27,6 +30,8 @@ import SearchModal from "@/components/SearchModal";
 import SkipVoteToast from "@/components/SkipVoteToast";
 import KickVoteToast from "@/components/KickVoteToast";
 import VinylDisc from "@/components/VinylDisc";
+import YouTubePlayer from "@/components/YouTubePlayer";
+import type { PlayerControls } from "@/components/Player";
 import { createRoomiSocket, type RoomiSocket } from "@/lib/socket";
 import type { KickVote, PlaybackState, QueueItem, RoomState, SkipVote, Track } from "@/lib/types";
 
@@ -88,6 +93,16 @@ function GuestRoomInner() {
     "connecting" | "connected" | "reconnecting" | "offline"
   >("connecting");
 
+  /* ───────────── Listen Along state ───────────── */
+  const guestPlayerRef = useRef<PlayerControls | null>(null);
+  const [listenMode, setListenMode] = useState<"host-only" | "everyone">("host-only");
+  const [listeningActive, setListeningActive] = useState(false);
+  const [guestPlayerReady, setGuestPlayerReady] = useState(false);
+  const [guestVolume, setGuestVolume] = useState(0.7);
+  const [guestMuted, setGuestMuted] = useState(false);
+  const lastSyncedTrackRef = useRef("");
+  const playbackRef = useRef<PlaybackState | null>(null);
+
   const applyRoomState = useCallback((state: RoomState | undefined | null) => {
     if (!state) return;
     setQueue(state.queue);
@@ -114,6 +129,8 @@ function GuestRoomInner() {
     setCohosts(state.cohosts ?? []);
     setHostId(state.hostId);
     setGuestsMap(state.guests ?? {});
+    if (state.listenMode) setListenMode(state.listenMode);
+    if (state.listenMode === "host-only") setListeningActive(false);
     setJoinState((current) => {
       if (state.guests?.[guestId]) return "approved";
       if (state.pendingGuests?.[guestId]) return "pending";
@@ -213,6 +230,122 @@ function GuestRoomInner() {
     return () => window.clearTimeout(id);
   }, [removalReason, router]);
 
+  /* ───────────── Listen Along ───────────── */
+
+  useEffect(() => { playbackRef.current = playback; }, [playback]);
+
+  useEffect(() => {
+    if (!listeningActive) {
+      lastSyncedTrackRef.current = "";
+      setGuestPlayerReady(false);
+    }
+  }, [listeningActive]);
+
+  useEffect(() => {
+    if (!listeningActive || !guestPlayerReady || !playback) return;
+    if (provider !== "youtube") return;
+
+    const player = guestPlayerRef.current;
+    if (!player) return;
+
+    const trackUri = playback.track?.uri ?? "";
+
+    if (!trackUri) {
+      if (lastSyncedTrackRef.current) {
+        player.clearPlayback().catch(() => {});
+        lastSyncedTrackRef.current = "";
+      }
+      return;
+    }
+
+    const hostPositionMs = playback.isPlaying
+      ? playback.startedAtPosition + (Date.now() - playback.startedAtTimestamp)
+      : playback.pausedAtPosition;
+    const clampedPosition = Math.max(0, Math.min(playback.duration, hostPositionMs));
+
+    if (trackUri !== lastSyncedTrackRef.current) {
+      lastSyncedTrackRef.current = trackUri;
+      player.playUri(trackUri, clampedPosition).catch(() => {});
+      if (!playback.isPlaying) {
+        setTimeout(() => player.pause().catch(() => {}), 500);
+      }
+      return;
+    }
+
+    if (playback.isPlaying) {
+      player.getCurrentState().then((state) => {
+        if (!state) return;
+        const drift = Math.abs(clampedPosition - state.position);
+        if (drift > 3000) {
+          player.seek(clampedPosition).catch(() => {});
+        }
+        if (state.paused) {
+          player.resume().catch(() => {});
+        }
+      }).catch(() => {});
+    } else {
+      player.pause().catch(() => {});
+    }
+  }, [playback, listeningActive, guestPlayerReady, provider]);
+
+  useEffect(() => {
+    if (!listeningActive || !guestPlayerReady || provider !== "youtube") return;
+
+    const id = window.setInterval(async () => {
+      const pb = playbackRef.current;
+      if (!pb?.isPlaying || !pb.track) return;
+
+      const player = guestPlayerRef.current;
+      if (!player) return;
+
+      const state = await player.getCurrentState().catch(() => null);
+      if (!state || state.paused) return;
+
+      const hostPos = pb.startedAtPosition + (Date.now() - pb.startedAtTimestamp);
+      const drift = Math.abs(hostPos - state.position);
+      if (drift > 3000) {
+        player.seek(hostPos).catch(() => {});
+      }
+    }, 5000);
+
+    return () => window.clearInterval(id);
+  }, [listeningActive, guestPlayerReady, provider]);
+
+  const handleGuestVolumeChange = useCallback((vol: number) => {
+    setGuestVolume(vol);
+    if (!guestMuted) {
+      guestPlayerRef.current?.setVolume(vol).catch(() => {});
+    }
+  }, [guestMuted]);
+
+  const toggleGuestMute = useCallback(() => {
+    setGuestMuted((prev) => {
+      const next = !prev;
+      guestPlayerRef.current?.setVolume(next ? 0 : guestVolume).catch(() => {});
+      return next;
+    });
+  }, [guestVolume]);
+
+  const handleGuestPlayerReady = useCallback((_deviceId: string) => {
+    setGuestPlayerReady(true);
+    guestPlayerRef.current?.setVolume(guestVolume).catch(() => {});
+  }, [guestVolume]);
+
+  const startListening = useCallback(() => {
+    setListeningActive(true);
+    const pb = playbackRef.current;
+    if (pb?.track && guestPlayerReady) {
+      const hostPos = pb.isPlaying
+        ? pb.startedAtPosition + (Date.now() - pb.startedAtTimestamp)
+        : pb.pausedAtPosition;
+      lastSyncedTrackRef.current = pb.track.uri;
+      guestPlayerRef.current?.playUri(pb.track.uri, hostPos).catch(() => {});
+      if (!pb.isPlaying) {
+        setTimeout(() => guestPlayerRef.current?.pause().catch(() => {}), 500);
+      }
+    }
+  }, [guestPlayerReady]);
+
   const copyCode = async () => {
     await navigator.clipboard.writeText(roomCode);
     setCopied(true);
@@ -294,6 +427,17 @@ function GuestRoomInner() {
 
   return (
     <div className="roomi-bg h-screen overflow-hidden text-slate-100">
+      {listenMode === "everyone" && provider === "youtube" && listeningActive && (
+        <div className="hidden">
+          <YouTubePlayer
+            ref={guestPlayerRef}
+            onReady={handleGuestPlayerReady}
+            onTrackEnd={() => {}}
+            onStatusChange={() => {}}
+            onError={(msg) => setError(`Listen Along: ${msg}`)}
+          />
+        </div>
+      )}
       <main className="mx-auto flex h-full max-w-[1600px] flex-col px-4 py-0 sm:px-6 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(420px,1fr)] lg:px-8 lg:py-0">
         <section className="min-h-0 flex flex-1 flex-col justify-center overflow-y-auto px-0 pb-16 pt-0 lg:px-4 lg:pb-0 lg:pt-0 lg:border-r lg:border-white/10 lg:pr-8">
           <div className="flex w-full flex-col items-center justify-center">
@@ -343,6 +487,58 @@ function GuestRoomInner() {
                 );
               })()}
             </div>
+
+            {/* Listen Along Controls */}
+            {listenMode === "everyone" && provider === "youtube" && joinState === "approved" && (
+              <div className="mt-6 w-full max-w-2xl px-4">
+                {!listeningActive ? (
+                  <div className="flex justify-center">
+                    <button
+                      type="button"
+                      onClick={startListening}
+                      className="inline-flex items-center gap-2.5 rounded-xl border border-violet-500/20 bg-violet-500/10 px-6 py-3 text-sm font-bold text-violet-200 transition hover:bg-violet-500/20 hover:border-violet-400/30 hover:scale-[1.02] active:scale-95 shadow-[0_4px_16px_rgba(0,0,0,0.25)]"
+                    >
+                      <Headphones className="h-4 w-4 text-violet-300" />
+                      Start Listening
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3 rounded-xl border border-violet-500/15 bg-violet-500/5 px-4 py-2.5">
+                    <button
+                      type="button"
+                      onClick={toggleGuestMute}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-violet-300 hover:text-violet-100 hover:bg-white/5 transition"
+                      aria-label={guestMuted ? "Unmute" : "Mute"}
+                    >
+                      {guestMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                    </button>
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      value={guestMuted ? 0 : Math.round(guestVolume * 100)}
+                      onChange={(e) => handleGuestVolumeChange(Number(e.target.value) / 100)}
+                      className="h-1 flex-1 cursor-pointer appearance-none rounded-lg focus:outline-none"
+                      style={{
+                        background: `linear-gradient(to right, #8b5cf6 0%, #8b5cf6 ${guestMuted ? 0 : guestVolume * 100}%, rgba(255,255,255,0.1) ${guestMuted ? 0 : guestVolume * 100}%, rgba(255,255,255,0.1) 100%)`,
+                      }}
+                      aria-label="Volume"
+                    />
+                    <span className="text-[10px] font-bold text-violet-400/70 w-8 text-right font-mono">
+                      {guestMuted ? "0" : Math.round(guestVolume * 100)}%
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {listenMode === "everyone" && provider === "spotify" && joinState === "approved" && (
+              <div className="mt-6 w-full max-w-2xl px-4">
+                <div className="rounded-xl border border-amber-500/15 bg-amber-500/5 px-4 py-3 text-[11px] leading-relaxed text-amber-300/80 select-none text-center">
+                  Synchronized listening is available for YouTube rooms only. Spotify requires each listener to have their own Premium account.
+                </div>
+              </div>
+            )}
 
             {currentTrack && joinState === "approved" && !skipVote ? (
               <div className="mt-6 w-full max-w-2xl px-4 flex justify-center">

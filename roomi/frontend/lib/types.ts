@@ -66,6 +66,7 @@ export type RoomState = {
   hostId: string;
   provider: MusicProvider;
   access: "open" | "locked";
+  listenMode: "host-only" | "everyone";
   queue: QueueItem[];
   currentTrack: Track | null;
   playback: PlaybackState;

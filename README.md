@@ -54,6 +54,10 @@ A host creates a room, connects their Spotify or YouTube Music, and shares a 6-c
               v
      Live updates via Socket.io
      Queue reorders. Music plays.
+              |
+              v
+    "Listen Along" mode (YouTube rooms)
+    Guests hear synced audio on their device
 ```
 
 </div>
@@ -72,6 +76,7 @@ A host creates a room, connects their Spotify or YouTube Music, and shares a 6-c
 - Share via 6-character code or QR
 - Lock rooms and approve guests
 - Full playback controls (play, pause, skip, seek)
+- Enable "Listen Along" so guests hear music on their own devices
 - Kick disruptive guests
 - End sessions cleanly
 
@@ -83,7 +88,9 @@ A host creates a room, connects their Spotify or YouTube Music, and shares a 6-c
 - Search the full Spotify / YouTube catalog
 - Add songs to the shared queue
 - Upvote tracks to influence order
+- Listen along — hear synced audio on your own device (YouTube rooms)
 - See live queue, votes, and now-playing
+- Independent volume and mute controls
 - Real-time updates, no refresh needed
 - Works on any device with a browser
 
@@ -94,8 +101,11 @@ A host creates a room, connects their Spotify or YouTube Music, and shares a 6-c
 <br>
 
 **Under the Hood**
+- Dual provider support — Spotify (Premium) or YouTube Music (free)
+- "Listen Along" mode — guests hear synced audio on their own device (YouTube rooms)
 - Animated vinyl disc player with cyberpunk/aurora/midnight/amber themes
 - Skip vote and kick vote toasts for democratic moderation
+- Co-host system — grant trusted guests elevated permissions
 - Equalizer bars and tonearm animations synced to playback state
 - Glassmorphic dark UI with smooth modal transitions
 - Mobile-first responsive design with safe-area support
@@ -109,7 +119,8 @@ A host creates a room, connects their Spotify or YouTube Music, and shares a 6-c
 │                        CLIENT BROWSERS                          │
 │                    (Host + Guest devices)                        │
 │                                                                 │
-│   Next.js App ──── Spotify Web Playback SDK / YouTube Player    │
+│   Next.js App ──── Spotify Web Playback SDK (host)              │
+│        │           YouTube IFrame Player (host or guest)         │
 │        │                                                        │
 └────────┼────────────────────────────────────────────────────────┘
          │  REST (mutations)              WebSocket (live state)
@@ -138,8 +149,9 @@ A host creates a room, connects their Spotify or YouTube Music, and shares a 6-c
 ### Prerequisites
 
 - **Node.js 22+** and npm
-- A **[Spotify Developer](https://developer.spotify.com/dashboard)** app (client ID + secret)
-- A **Spotify Premium** account (required for Web Playback SDK)
+- A **[Spotify Developer](https://developer.spotify.com/dashboard)** app (client ID + secret) — for Spotify rooms
+- A **Spotify Premium** account (required for Web Playback SDK on host)
+- A **[Google Cloud](https://console.cloud.google.com)** project with OAuth 2.0 credentials + YouTube Data API v3 enabled — for YouTube rooms
 
 ### 1. Clone & Install
 
@@ -164,16 +176,26 @@ CORS_ORIGIN=http://127.0.0.1:3000
 **Frontend** — create `roomi/frontend/.env.local`:
 
 ```env
+# Spotify OAuth
 SPOTIFY_CLIENT_ID=your_spotify_client_id
 SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
 SPOTIFY_REDIRECT_URI=http://127.0.0.1:3000/api/auth/callback
+
+# Google OAuth + YouTube (optional, for YouTube rooms)
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+GOOGLE_REDIRECT_URI=http://localhost:3000/api/auth/google/callback
+YOUTUBE_API_KEY=your_youtube_api_key
+
+# Session
 SESSION_PASSWORD=a_random_string_at_least_32_characters
 
+# Backend connection
 NEXT_PUBLIC_SOCKET_URL=http://127.0.0.1:4001
-SOCKET_PROVIDER_URL=http://127.0.0.1:4001
+BACKEND_URL=http://127.0.0.1:4001
 ```
 
-> **Important:** Add `http://127.0.0.1:3000/api/auth/callback` as a redirect URI in your Spotify Developer Dashboard. Use `127.0.0.1`, not `localhost`, so OAuth cookies stay consistent.
+> **Important:** Add `http://127.0.0.1:3000/api/auth/callback` as a redirect URI in your Spotify Developer Dashboard. For Google, add `http://localhost:3000/api/auth/google/callback` as an authorized redirect URI in Google Cloud Console (Google accepts `localhost` but not `127.0.0.1` for OAuth origins).
 
 ### 3. Run
 
@@ -220,11 +242,15 @@ Deploy `roomi/frontend` as the Vercel project:
   - `SPOTIFY_CLIENT_ID`
   - `SPOTIFY_CLIENT_SECRET`
   - `SPOTIFY_REDIRECT_URI=https://your-app.vercel.app/api/auth/callback`
+  - `GOOGLE_CLIENT_ID`
+  - `GOOGLE_CLIENT_SECRET`
+  - `GOOGLE_REDIRECT_URI=https://your-app.vercel.app/api/auth/google/callback`
+  - `YOUTUBE_API_KEY`
   - `SESSION_PASSWORD` (32+ random characters)
   - `NEXT_PUBLIC_SOCKET_URL=https://your-backend.onrender.com`
-  - `SOCKET_PROVIDER_URL=https://your-backend.onrender.com`
+  - `BACKEND_URL=https://your-backend.onrender.com`
 
-Add the production callback URL to Spotify Developer Dashboard.
+Add the production callback URLs to both Spotify Developer Dashboard and Google Cloud Console.
 
 </details>
 
@@ -236,8 +262,8 @@ Add the production callback URL to Spotify Developer Dashboard.
 |----------|---------|
 | **Next** | Persistent storage (Redis/PostgreSQL) for room state across restarts |
 | **Next** | Smart moderation — vote thresholds, auto-skip, duplicate cooldowns |
+| **Soon** | Spotify "Listen Along" — synchronized guest playback for Spotify Premium users |
 | **Soon** | BPM/energy-aware queue suggestions for smoother transitions |
-| **Soon** | Role system — co-hosts, trusted guests, permission tiers |
 | **Later** | Post-session analytics — top contributors, mood trends, playlist export |
 | **Later** | PWA with installable flow, haptic feedback, lock-screen controls |
 | **Later** | Horizontal scaling with shared state for large venues |
@@ -252,7 +278,7 @@ Add the production callback URL to Spotify Developer Dashboard.
 | UI | React 19, Tailwind CSS 4, Lucide Icons |
 | Language | TypeScript 5 |
 | Auth | Spotify OAuth, Google OAuth, Iron Session |
-| Music | Spotify Web API + Playback SDK, YouTube Music |
+| Music | Spotify Web API + Playback SDK, YouTube Data API v3 + IFrame Player |
 | Real-time | Socket.io 4, Express 5 |
 | State | In-memory room store with TTL |
 | QR | `qrcode` with custom SVG rendering |
